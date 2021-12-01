@@ -1,4 +1,5 @@
 const { Client } = require('pg'); // imports the pg module
+const { rows } = require('pg/lib/defaults');
 
 // supply the db name and location of the database
 const client = new Client('postgres://localhost:5432/postgres');
@@ -10,6 +11,15 @@ async function getAllUsers() {
       FROM users;
     `);
   //      console.log("log here",rows)
+    return rows;
+  }
+
+  async function getAllPosts() {
+    const { rows } = await client.query(
+      `SELECT id, "authorId", title, content 
+      FROM posts;
+    `);
+    console.log("return from getAllPosts: ", rows)
     return rows;
   }
 
@@ -30,6 +40,57 @@ async function getAllUsers() {
     } catch (error) {
       throw error;
     }
+  }
+
+  async function createTags(tagList) {
+    if (tagList.length === 0) { 
+      return; 
+    }
+  
+    console.log(tagList)
+    // need something like: $1), ($2), ($3 
+    // const insertValues = tagList.map(
+    //   (_, index) => `$${index + 1}`).join('), (');
+    // // then we can use: (${ insertValues }) in our string template
+  
+    // // need something like $1, $2, $3
+    // const selectValues = tagList.map(
+    //   (_, index) => `$${index + 1}`).join(', ');
+    // // then we can use (${ selectValues }) in our string template
+
+    let selectValues = `$`;
+    let insertValues = `(DEFAULT, $`;
+    for(let i = 0; i < tagList.length; i++){
+      insertValues += (i + 1);
+      insertValues += `), (DEFAULT, $`;
+      selectValues += (i + 1);
+      selectValues += `, $`
+      if(i === tagList.length - 1){
+        insertValues = insertValues.substring( 0, insertValues.length - 13);
+        selectValues = selectValues.substring(0, selectValues.length - 3);
+      }
+    }
+
+    console.log('insertValues: ', insertValues)
+    console.log('selectValues: ', selectValues)
+  
+     try {
+       const {rows: tagsArray} = await client.query(`
+       INSERT INTO tags(id, name)
+       VALUES ${insertValues}
+       ON CONFLICT (id) DO NOTHING
+       RETURNING *;
+     `, tagList);
+      //  insert the tags, doing nothing on conflict
+      //  returning nothing, we'll query after
+  
+      //  select all tags where the name is in our taglist
+      //  return the rows from the query
+      console.log("rows: ", tagsArray)
+      return tagList;
+     } catch (error) {
+       throw error;
+     }
   }
 
   async function updateUser(id, fields = {}) {
@@ -71,6 +132,66 @@ async function getAllUsers() {
       `, [id, authorId, title, content]);
       // console.log('posts here')
       return posts;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async function getPostById(postId) {
+    try {
+      const { rows: [ post ]  } = await client.query(`
+        SELECT *
+        FROM posts
+        WHERE id=$1;
+      `, [postId]);
+  
+      const { rows: tags } = await client.query(`
+        SELECT tags.*
+        FROM tags
+        JOIN post_tags ON tags.id=post_tags."tagId"
+        WHERE post_tags."postId"=$1;
+      `, [postId])
+  
+      const { rows: [author] } = await client.query(`
+        SELECT id, username, name, location
+        FROM users
+        WHERE id=$1;
+      `, [post.authorId])
+  
+      post.tags = tags;
+      post.author = author;
+  
+      delete post.authorId;
+  
+      return post;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async function addTagsToPost(postId, tagList) {
+    try {
+      const createPostTagPromises = tagList.map(
+        tag => createPostTag(postId, tag.id)
+      );
+  
+      await Promise.all(createPostTagPromises);
+  
+      return await getPostById(postId);
+    } catch (error) {
+      console.log("addTagsToPost isn't working", error)
+      throw error;
+    }
+  }
+
+
+  async function createPostTag(postId, tagId) {
+    try {
+      await client.query(`
+        INSERT INTO post_tags("postId", "tagId")
+        VALUES ($1, $2)
+        ON CONFLICT ("postId", "tagId") DO NOTHING;
+      `, [postId, tagId]);
     } catch (error) {
       throw error;
     }
@@ -186,5 +307,10 @@ async function getAllUsers() {
     createPost,
     updatePost,
     getPostsByUser,
-    getUserById
+    getUserById,
+    createTags,
+    createPostTag,
+    addTagsToPost,
+    getPostById,
+    getAllPosts
   }

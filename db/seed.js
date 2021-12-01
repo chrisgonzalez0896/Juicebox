@@ -6,27 +6,67 @@ const {
     createPost,
     updatePost,
     getPostsByUser,
-    getUserById
+    getUserById,
+    createTags,
+    createPostTag,
+    addTagsToPost,
+    getPostById,
+    getAllPosts
 } = require('./index');
+
+async function createInitialTags() {
+    try {
+      console.log("Starting to create tags...");
+  
+      const [happy, sad, inspo, catman] = await createTags([
+        '#happy', 
+        '#worst-day-ever', 
+        '#youcandoanything',
+        '#catmandoeverything'
+      ]);
+  
+      const [postOne, postTwo, postThree] = await getAllPosts();
+  
+      await addTagsToPost(postOne.id, [happy, inspo]);
+    //   await addTagsToPost(postTwo.id, [sad, inspo]);
+    //   await addTagsToPost(postThree.id, [happy, catman, inspo]);
+  
+      console.log("Finished creating tags!");
+    } catch (error) {
+      console.log("Error creating tags: ", error);
+      throw error;
+    }
+  }
 
 async function dropTables() {
     try {
-        console.log("Starting to drop tables...");
-
-        await client.query(`
+      console.log("Starting to drop tables...");
+  
+      // have to make sure to drop in correct order
+      await client.query(`
+        DROP TABLE IF EXISTS post_tags;
+        DROP TABLE IF EXISTS tags;
         DROP TABLE IF EXISTS posts;
-      `);
-        
-        await client.query(`
         DROP TABLE IF EXISTS users;
       `);
-
-        console.log("Finished dropping tables!");
+  
+      console.log("Finished dropping tables!");
     } catch (error) {
-        console.error("Error dropping tables!");
-        throw error;
+      console.error("Error dropping tables!");
+      throw error;
     }
-}
+  }
+
+//   tags
+
+//   id, SERIAL PRIMARY KEY
+//   name, VARCHAR(255) UNIQUE NOT NULL
+//   post_tags
+  
+//   "postId", INTEGER REFERENCES posts(id)
+//   "tagId", INTEGER REFERENCES tags(id)
+//   Add a UNIQUE constraint on ("postId", "tagId")
+
 
 async function createTables() {
     try {
@@ -53,6 +93,20 @@ async function createTables() {
         );
       `);
 
+      await client.query(`
+        CREATE TABLE tags (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
+      CREATE TABLE post_tags (
+          "postId" INTEGER REFERENCES posts(id) UNIQUE,
+          "tagId" INTEGER REFERENCES tags(id) UNIQUE
+      );
+    `);
+      
         console.log("Finished building tables!");
     } catch (error) {
         console.error("Error building tables!");
@@ -80,7 +134,7 @@ async function createInitialPosts() {
       const [albert, sandra, glamgal] = await getAllUsers();
   
       await createPost({
-        id: 2,
+        id: 1,
         authorId: albert.id,
         title: "First Post",
         content: "This is my first post. I hope I love writing blogs as much as I love writing them."
@@ -94,16 +148,23 @@ async function createInitialPosts() {
 // then modify rebuildDB to call our new function
 async function rebuildDB() {
     try {
-        client.connect();
-
-        await dropTables();
-        await createTables();
-        await createInitialUsers();
-        await createInitialPosts();
+      client.connect();
+  
+      await dropTables();
+      
+      await createTables();
+      console.log("createTables worked")
+      await createInitialUsers();
+      console.log("createInitialUsers worked")
+      await createInitialPosts();
+      console.log("createInitialPosts worked")
+      await createInitialTags();
+      console.log("createInitialTags worked")
     } catch (error) {
-        throw error;
+      console.log("Error during rebuildDB")
+      throw error;
     }
-}
+  }
 
 async function testDB() {
     try {
@@ -124,6 +185,10 @@ async function testDB() {
       console.log("Calling getPostByUser")
       const userPosts = await getPostsByUser(1);
       console.log("Result:", userPosts)
+
+      console.log("Calling createTags")
+      const tags = await(createTags(["#tag1", "#tag2"]));
+      console.log("Result: ", tags)
 
       console.log("Calling getUserById")
       const userPostsWithUserInfo = await getUserById(1);
