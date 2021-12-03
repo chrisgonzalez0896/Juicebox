@@ -176,6 +176,59 @@ async function getAllPosts() {
   }
 }
 
+// async function getAllTags() {
+//   try {
+//     const { rows: tagIds } = await client.query(`
+//       SELECT id
+//       FROM tags;
+//     `);
+
+//     const tags = await Promise.all(tagIds.map(
+//       post => getTagById( tag.id )
+//     ));
+
+//     return tags;
+//   } catch (error) {
+//     throw error;
+//   }
+// }
+
+// async function getTagsById(tagId) {
+//   try {
+//     const { rows: [ tag ]  } = await client.query(`
+//       SELECT *
+//       FROM tags
+//       WHERE id=$1;
+//     `, [tagId]);
+
+//     const { rows: [name] } = await client.query(`
+//       SELECT id, username, name, location
+//       FROM users
+//       WHERE id=$1;
+//     `, [post.authorId])
+
+//     tag.name = name;
+
+//     return tag;
+//   } catch (error) {
+//     throw error;
+//   }
+// }
+
+async function getUserByUsername(username) {
+  try {
+    const { rows: [user] } = await client.query(`
+      SELECT *
+      FROM users
+      WHERE username=$1;
+    `, [username]);
+
+    return user;
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function getPostById(postId) {
   try {
     const { rows: [ post ]  } = await client.query(`
